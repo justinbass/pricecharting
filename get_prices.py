@@ -81,11 +81,13 @@ def get_rows():
 
             set_id, card_id, grade_id, count, card_number = row
 
-            grade_id = grade_id if grade_id and grade_id in ALL_GRADES else UNGRADED_CSV_ID
+            grade_id = grade_id if grade_id and str(grade_id) in CSV_GRADE_ID.keys() else UNGRADED_CSV_ID
             grade_id = CSV_GRADE_ID[grade_id]
 
             count = int(count) if count else 1
-            rows.append([set_id, card_id, grade_id, count])
+
+            if count:
+                rows.append([set_id, card_id, grade_id, count])
 
     return rows
 
@@ -121,7 +123,7 @@ def get_prices_from_rows():
             prices.append([set_id, card_id, grade_id, count, 0, gradeworthy])
             continue
 
-        graded_price = price[grade_id] - PSA_GRADING_PRICE
+        graded_price = price[str(grade_id)] - PSA_GRADING_PRICE
         price = price[UNGRADED]
 
         if graded_price > price:
