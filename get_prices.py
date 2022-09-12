@@ -3,10 +3,8 @@ from concurrent.futures import ThreadPoolExecutor
 import concurrent
 import csv
 import requests
+import sys
 import urllib3
-
-CSV_IN_FILENAME = 'cards.csv'
-CSV_OUT_FILENAME = 'prices.csv'
 
 PSA_GRADING_PRICE = 30.00
 
@@ -73,7 +71,7 @@ def get_prices(input_data):
 
 def get_rows():
     rows = list()
-    with open(CSV_IN_FILENAME) as csvfile:
+    with open(sys.argv[1]) as csvfile:
         header_processed = False
 
         for row in csv.reader(csvfile):
@@ -135,6 +133,10 @@ def get_prices_from_rows():
     return prices
 
 def get_total():
+    if len(sys.argv) < 2:
+        print('Error, not enough args. Try: get_prices.py in.csv')
+        return
+
     total = 0
     errors = list()
 
@@ -142,7 +144,7 @@ def get_total():
 
     prices.sort(key=lambda l: l[1])
 
-    with open(CSV_OUT_FILENAME, 'w') as csvfile:
+    with open('prices_' + sys.argv[1], 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['set_id', 'card_id', 'grade_id', 'count', 'price', 'gradeworthy'])
         for i, data in enumerate(prices):
