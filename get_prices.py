@@ -6,7 +6,9 @@ import requests
 import sys
 import urllib3
 
+DEFAULT_CARD_PRICE = 1.00
 PSA_GRADING_PRICE = 30.00
+INVALID_PRICE = -1
 
 UNGRADED = 'Ungraded'
 PSA7 = 'Grade 7'
@@ -35,7 +37,7 @@ PRICE_DATA_TABLE_ID = 'price_data'
 
 def clean_price(raw):
     ret = raw
-    for s in ['\\n', ' ', '-', '+']:
+    for s in ['\\n', ' ', '-', '+', ',']:
         ret = ret.replace(s, '')
     ret = ret[1:]
     ret = ret[:ret.find('$')]
@@ -45,7 +47,11 @@ def clean_price(raw):
     try:
         ret = float(ret)
     except ValueError:
-        ret = 0
+        if ret == 'N/A' or ret == '/A':
+            ret = 0
+        else:
+            print(f'ERROR: Unexpected string: {ret}')
+            ret = INVALID_PRICE
 
     return ret
 
@@ -66,6 +72,10 @@ def get_prices(input_data):
             page_grade_id = ALL_GRADE_IDS[i]
             price_data_text = price_data.find('td', id=page_grade_id).text
             price[page_grade] = clean_price(price_data_text)
+    else:
+        for i in range(len(ALL_GRADES)):
+            page_grade = ALL_GRADES[i]
+            price[page_grade] = INVALID_PRICE
 
     return set_id, card_id, grade_id, count, url, price
 
@@ -114,13 +124,17 @@ def get_prices_from_rows():
         gradeworthy = str(False)
 
         if not output_datum:
-            prices.append([set_id, card_id, grade_id, count, 0, gradeworthy])
+            prices.append([set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
             continue
 
         set_id, card_id, grade_id, count, url, price = output_datum
 
         if not price:
             prices.append([set_id, card_id, grade_id, count, 0, gradeworthy])
+            continue
+
+        if price == INVALID_PRICE:
+            prices.append([set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
             continue
 
         graded_price = price[str(grade_id)] - PSA_GRADING_PRICE
@@ -140,6 +154,7 @@ def get_total():
         return
 
     total = 0
+    no_prices = list()
     errors = list()
 
     prices = get_prices_from_rows()
@@ -152,15 +167,32 @@ def get_total():
         for i, data in enumerate(prices):
             set_id, card_id, grade_id, count, price, gradeworthy = data
 
-            csvwriter.writerow(data)
-
-            if price <= 0:
-                errors.append(f'{i}: No price data: {set_id} {card_id}')
-                continue
-
             print(f'{i}: {set_id}, {card_id}, {grade_id}, count: {count}: Gradeworthy: {gradeworthy}, ${price:.2f}')
 
+            if price == 0:
+                no_prices.append(f'{i}: No price data: {set_id} {card_id}, defaulting to ${DEFAULT_CARD_PRICE:.2f}')
+                price = DEFAULT_CARD_PRICE
+
+                # Leave CSV to show 0 for missing data. Total price will reflect default addition.
+                # data = set_id, card_id, grade_id, count, price, gradeworthy
+
+            elif price == INVALID_PRICE:
+                errors.append(f'{i}: Card id not found: {set_id} {card_id}, defaulting to ${DEFAULT_CARD_PRICE:.2f}')
+                price = DEFAULT_CARD_PRICE
+
+                # Leave CSV to show -1 for missing data. Total price will reflect default addition.
+                # data = set_id, card_id, grade_id, count, price, gradeworthy
+
+            csvwriter.writerow(data)
+
             total += price * count
+
+        csvwriter.writerow(['total', '', '', '', total, ''])
+
+    print()
+    for no_price in no_prices:
+        print(no_price)
+    print()
 
     print()
     for error in errors:
