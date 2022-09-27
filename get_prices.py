@@ -9,6 +9,7 @@ import urllib3
 DEFAULT_CARD_PRICE = 1.00
 PSA_GRADING_PRICE = 30.00
 INVALID_PRICE = -1
+INVALID_ROW_ID = -1
 
 UNGRADED = 'Ungraded'
 PSA7 = 'Grade 7'
@@ -56,7 +57,7 @@ def clean_price(raw):
     return ret
 
 def get_prices(input_data):
-    set_id, card_id, grade_id, count, url = input_data
+    row_id, set_id, card_id, grade_id, count, url = input_data
 
     http = urllib3.PoolManager()
     r = http.request('GET', url)
@@ -77,7 +78,7 @@ def get_prices(input_data):
             page_grade = ALL_GRADES[i]
             price[page_grade] = INVALID_PRICE
 
-    return set_id, card_id, grade_id, count, url, price
+    return row_id, set_id, card_id, grade_id, count, url, price
 
 def get_rows():
     rows = list()
@@ -104,10 +105,10 @@ def get_rows():
 def get_prices_from_rows():
     input_data = list()
     rows = get_rows()
-    for row in rows:
+    for row_id, row in enumerate(rows):
         set_id, card_id, grade_id, count = row
         url = BASE_URL + set_id + '/' + card_id
-        input_data.append([set_id, card_id, grade_id, count, url])
+        input_data.append([row_id, set_id, card_id, grade_id, count, url])
 
     output_data = list()
 
@@ -124,17 +125,17 @@ def get_prices_from_rows():
         gradeworthy = str(False)
 
         if not output_datum:
-            prices.append([set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
+            prices.append([INVALID_ROW_ID, set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
             continue
 
-        set_id, card_id, grade_id, count, url, price = output_datum
+        row_id, set_id, card_id, grade_id, count, url, price = output_datum
 
         if not price:
-            prices.append([set_id, card_id, grade_id, count, 0, gradeworthy])
+            prices.append([row_id, set_id, card_id, grade_id, count, 0, gradeworthy])
             continue
 
         if price == INVALID_PRICE:
-            prices.append([set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
+            prices.append([row_id, set_id, card_id, grade_id, count, INVALID_PRICE, gradeworthy])
             continue
 
         graded_price = price[str(grade_id)] - PSA_GRADING_PRICE
@@ -144,7 +145,7 @@ def get_prices_from_rows():
             gradeworthy = str(True)
             price = graded_price
 
-        prices.append([set_id, card_id, grade_id, count, price, gradeworthy])
+        prices.append([row_id, set_id, card_id, grade_id, count, price, gradeworthy])
 
     return prices
 
@@ -159,13 +160,14 @@ def get_total():
 
     prices = get_prices_from_rows()
 
-    prices.sort(key=lambda l: l[1])
+    # Sort on row id
+    prices.sort(key=lambda l: l[0])
 
     with open('prices_' + sys.argv[1], 'w') as csvfile:
         csvwriter = csv.writer(csvfile)
         csvwriter.writerow(['set_id', 'card_id', 'grade_id', 'count', 'price', 'gradeworthy'])
         for i, data in enumerate(prices):
-            set_id, card_id, grade_id, count, price, gradeworthy = data
+            row_id, set_id, card_id, grade_id, count, price, gradeworthy = data
 
             print(f'{i}: {set_id}, {card_id}, {grade_id}, count: {count}: Gradeworthy: {gradeworthy}, ${price:.2f}')
 
@@ -183,6 +185,7 @@ def get_total():
                 # Leave CSV to show -1 for missing data. Total price will reflect default addition.
                 # data = set_id, card_id, grade_id, count, price, gradeworthy
 
+            data = set_id, card_id, grade_id, count, price, gradeworthy
             csvwriter.writerow(data)
 
             total += price * count
