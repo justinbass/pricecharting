@@ -11,6 +11,9 @@ PSA_GRADING_PRICE = 30.00
 INVALID_PRICE = -1
 INVALID_ROW_ID = -1
 
+# Adjustment to ebay price: USPS Shipping + toploader + sleeve cost
+OVERHEAD_PER_CARD = 0.6 + 0.17 + 0.08
+
 UNGRADED = 'Ungraded'
 PSA7 = 'Grade 7'
 PSA8 = 'Grade 8'
@@ -155,6 +158,8 @@ def get_total():
         return
 
     total = 0
+    total_adjusted = 0
+    card_count = 0
     no_prices = list()
     errors = list()
 
@@ -188,9 +193,13 @@ def get_total():
             data = set_id, card_id, grade_id, count, price, gradeworthy, notes
             csvwriter.writerow(data)
 
+            card_count += count
             total += price * count
 
-        csvwriter.writerow(['total', '', '', '', total, ''])
+        csvwriter.writerow(['total buy', '', '', '', total, ''])
+
+        total_adjusted = total - card_count * OVERHEAD_PER_CARD
+        csvwriter.writerow(['total sell', '', '', '', total_adjusted, ''])
 
     print()
     for no_price in no_prices:
@@ -202,6 +211,7 @@ def get_total():
         print(error)
     print()
 
-    print(f'Total: ${total:.2f}')
+    print(f'Total buy: ${total:.2f}')
+    print(f'Total sell: ${total_adjusted:.2f}')
 
 get_total()
